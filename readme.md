@@ -1,27 +1,73 @@
-# Laravel PHP Framework
+为 <https://github.com/garveen/laravoole/issues/16#issuecomment-274311086> issues 写的demo
 
-[![Build Status](https://travis-ci.org/laravel/framework.svg)](https://travis-ci.org/laravel/framework)
-[![Total Downloads](https://poser.pugx.org/laravel/framework/d/total.svg)](https://packagist.org/packages/laravel/framework)
-[![Latest Stable Version](https://poser.pugx.org/laravel/framework/v/stable.svg)](https://packagist.org/packages/laravel/framework)
-[![Latest Unstable Version](https://poser.pugx.org/laravel/framework/v/unstable.svg)](https://packagist.org/packages/laravel/framework)
-[![License](https://poser.pugx.org/laravel/framework/license.svg)](https://packagist.org/packages/laravel/framework)
+```bash
+    composer create-project laravel/laravel laravoole_chunk_demo  --prefer-dist "5.3.*"
+    composer require pion/laravel-chunk-upload
+    composer require garveen/laravoole
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable, creative experience to be truly fulfilling. Laravel attempts to take the pain out of development by easing common tasks used in the majority of web projects, such as authentication, routing, sessions, queueing, and caching.
+简单起见, 代码都在 `UploadController`
+前端直接webuploader 扒的
 
-Laravel is accessible, yet powerful, providing tools needed for large, robust applications. A superb inversion of control container, expressive migration system, and tightly integrated unit testing support give you the tools you need to build any application with which you are tasked.
+/upload  访问
 
-## Official Documentation
+附nginx
 
-Documentation for the framework can be found on the [Laravel website](http://laravel.com/docs).
+```nginx
+server {
+    listen       80;
+    server_name  laravoole_demo.com;
 
-## Contributing
+    set $root "xxx/wwwroot/laravoole_chunk_demo/public";
+    root $root;
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](http://laravel.com/docs/contributions).
+    index  index.html index.htm index.php;
 
-## Security Vulnerabilities
+    # try_files $uri $uri/ @rewrite;
+    # try_files $uri $uri/ @laravooleHttp;
+    try_files $uri $uri/ @laravooleCGI;
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell at taylor@laravel.com. All security vulnerabilities will be promptly addressed.
+    location @rewrite {
+        rewrite ^/(.*)$ /index.php?_url=/$1;
+    }
 
-## License
+    # location
 
-The Laravel framework is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT).
+    # http OK
+    location @laravooleHttp {
+        proxy_set_header   Host $host:$server_port;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+
+        proxy_pass http://127.0.0.1:9050;
+    }
+
+    # fastcgi
+
+    location @laravooleCGI {
+        include fastcgi_params;
+        fastcgi_pass 127.0.0.1:9050;
+    }
+
+    location ~ \.php$ {
+        fastcgi_intercept_errors on;
+        fastcgi_pass   127.0.0.1:9000;
+        fastcgi_index  index.php;
+        fastcgi_param  SCRIPT_FILENAME  $root$fastcgi_script_name;
+        include        /usr/local/etc/tengine/fastcgi_params;
+
+        fastcgi_connect_timeout 1800;
+        fastcgi_send_timeout 1800;
+        fastcgi_read_timeout 1800;
+        fastcgi_buffer_size 1024k;
+        fastcgi_buffers 32 1024k;
+        fastcgi_busy_buffers_size 2048k;
+        fastcgi_temp_file_write_size 2048k;
+    }
+
+    location ~* ^/(css|img|js|flv|swf|download)/(.+)$ {
+        root $root;
+    }
+}
+```
